@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Male–Female Classifier</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body {
+      background: radial-gradient(circle at top, #0f172a, #000);
+      color: #e2e8f0;
+      font-family: 'Poppins', sans-serif;
+      overflow-x: hidden;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.1);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 0 20px rgba(6,182,212,0.3);
+    }
+
+    .neon-text {
+      text-shadow: 0 0 10px #22d3ee, 0 0 20px #22d3ee, 0 0 40px #22d3ee;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    footer {
+      margin-top: 100px;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col items-center p-4">
+
+  <!-- Header -->
+  <header class="w-full max-w-5xl mt-6 mb-4 text-center">
+    <h1 class="text-4xl md:text-5xl font-bold text-cyan-300 neon-text">Male–Female Classifier</h1>
+    <p class="text-slate-300 mt-3 text-sm md:text-base">
+      Upload an image or capture one using your camera. The model predicts gender and displays a Grad-CAM heatmap.
+    </p>
+  </header>
+
+  <!-- Main -->
+  <main class="w-full max-w-5xl grid md:grid-cols-2 gap-8">
+    
+    <!-- Upload & Camera Section -->
+    <section class="card rounded-2xl p-6 flex flex-col items-center">
+      <form method="POST" enctype="multipart/form-data" class="w-full space-y-4 text-center">
+        <label class="block text-sm text-slate-200 font-semibold">📁 Upload an Image</label>
+        <input name="image" type="file" accept="image/*"
+               class="w-full p-2 rounded bg-slate-900 border border-cyan-600 focus:ring-2 focus:ring-cyan-400 focus:outline-none">
+
+        <button type="submit"
+                class="w-full mt-3 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-black font-semibold transition">
+          Predict from File
+        </button>
+      </form>
+
+      <div class="text-slate-400 text-sm my-4">OR</div>
+
+      <!-- Camera Capture -->
+      <button id="openCamBtn"
+              class="w-full py-2 rounded-lg bg-purple-500 hover:bg-purple-400 text-white font-semibold transition">
+        🎥 Capture from Camera
+      </button>
+
+      <div id="cameraContainer" class="hidden flex flex-col items-center mt-4">
+        <video id="camera" width="380" height="280" autoplay class="rounded-lg border border-cyan-600 shadow-md"></video>
+        <button id="captureBtn"
+                class="mt-3 bg-green-500 hover:bg-green-400 text-black font-semibold px-5 py-2 rounded-lg">
+          📸 Capture & Predict
+        </button>
+        <canvas id="snapshot" width="380" height="280" class="hidden"></canvas>
+      </div>
+
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}
+          <div class="mt-4 space-y-2 text-center">
+            {% for m in messages %}
+              <div class="text-sm text-red-300 font-medium">{{ m }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+    </section>
+
+    <!-- Result Section -->
+    <section class="card rounded-2xl p-6">
+      {% if pred_label %}
+        <div class="space-y-3 text-center">
+          <div class="text-lg">
+            <span class="text-slate-300">Prediction:</span>
+            <span class="font-bold text-cyan-300">{{ pred_label|title }}</span>
+          </div>
+          <div class="text-lg">
+            <span class="text-slate-300">Confidence:</span>
+            <span class="font-bold text-green-400">{{ pred_conf }}%</span>
+          </div>
+
+          <div class="grid md:grid-cols-2 gap-4 mt-4">
+            <figure>
+              <figcaption class="text-sm text-slate-400 mb-1">Uploaded Image</figcaption>
+              <img src="{{ uploaded_url }}" alt="Uploaded" class="rounded-lg w-full object-contain border border-slate-700">
+            </figure>
+
+            <figure>
+              <figcaption class="text-sm text-slate-400 mb-1">Grad-CAM Heatmap</figcaption>
+              <img src="{{ cam_url }}" alt="Grad-CAM" class="rounded-lg w-full object-contain border border-slate-700">
+            </figure>
+          </div>
+        </div>
+      {% else %}
+        <div class="flex flex-col items-center justify-center h-full text-center text-slate-400">
+          <p>No prediction yet. Upload or capture an image to start.</p>
+        </div>
+      {% endif %}
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="text-xs text-slate-500 mt-10 text-center">
+    Developed by <span class="text-cyan-400 font-semibold">@Krish Gupta</span> | 2025
+  </footer>
+
+  <!-- JS for camera -->
+  <script>
+    const openBtn = document.getElementById("openCamBtn");
+    const camDiv = document.getElementById("cameraContainer");
+    const video = document.getElementById("camera");
+    const canvas = document.getElementById("snapshot");
+    const captureBtn = document.getElementById("captureBtn");
+
+    openBtn.addEventListener("click", async () => {
+      camDiv.classList.remove("hidden");
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+      } catch (err) {
+        alert("Unable to access camera: " + err);
+      }
+    });
+
+    captureBtn.addEventListener("click", () => {
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => {
+        const formData = new FormData();
+        formData.append("image", blob, "camera_capture.png");
+        fetch("/", { method: "POST", body: formData })
+          .then(res => res.text())
+          .then(html => document.body.innerHTML = html)
+          .catch(err => alert("Upload failed: " + err));
+      }, "image/png");
+    });
+  </script>
+</body>
+</html>
