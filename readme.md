@@ -65,7 +65,7 @@ It also generates a **Grad-CAM heatmap** to visualize which regions of the image
 
 ### 1️⃣ Clone the repository
 ```bash
-git clone https://github.com/yourusername/male-female-classifier.git
+git clone https://github.com/kg0420/male-female-classifier.git
 cd male-female-classifier
 # 👩‍🦰🧔 Male–Female Classifier with Grad-CAM Visualization
 
